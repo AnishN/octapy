@@ -1,44 +1,63 @@
-import setuptools
-import numpy as np
-from setuptools.extension import Extension
-from Cython.Distutils import build_ext
+from distutils.core import setup
 from Cython.Build import cythonize
+from distutils.core import Extension
+import numpy as np
+import os
+import shutil
+import platform
 
+libraries = {
+    "Linux": ["netcdf", "proj"],
+    "Windows": [],
+}
+language = "c"
+args = ["-w", "-std=c11", "-O3", "-ffast-math", "-march=native", "-fno-var-tracking-assignments"]
+link_args = ["-std=c11"]
+annotate = True
+quiet = False
+directives = {
+    "binding": True,
+    "boundscheck": False,
+    "wraparound": False,
+    "initializedcheck": False,
+    "cdivision": True,
+    "nonecheck": False,
+    "language_level": "3",
+    #"c_string_type": "unicode",
+    #"c_string_encoding": "utf-8",
+}
 
-with open("README.md", "r") as fh:
-    long_description = fh.read()
-
-extensions = [Extension("octapy.*", ["octapy/interp_idw.pyx"],
-                        language='c++', include_dirs=[np.get_include(),
-                                                      '/opt/local/include']),
-              Extension("octapy.*", ["octapy/get_data_at_index.pyx"],
-                        language='c++', include_dirs=[np.get_include(),
-                                                      '/opt/local/include']),
-              Extension("octapy.*", ["octapy/data.pyx"],
-                        language='c++', include_dirs=[np.get_include(),
-                                                      '/opt/local/include'])]
-
-setuptools.setup(
-    name='octapy',
-    version="0.0.1",
-    author="Jason Tilley",
-    author_email="jason.tilley@usm.edu",
-    description="Ocean Connectivity and Tracking Algorithms",
-    long_description=long_description,
-    long_description_content_type="text/markdown",
-    url="https://github.com/jasontilley/octapy",
-    #os.environ["CC"] = "clang",
-    packages=setuptools.find_packages(),
-    package_data={"octapy": ["*.pxd"]},
-    cmdclass={'build_ext': build_ext},
-    ext_modules=cythonize(extensions,
-                          compiler_directives={'language_level': '3'},
-                          annotate=True),
-    classifiers=[
-        "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
-        "Operating System :: OS Independent",
-    ],
-    python_requires='>=3.7',
-    zip_safe=False
-)
+if __name__ == "__main__":
+    system = platform.system()
+    libs = libraries[system]
+    extensions = []
+    ext_modules = []
+    
+    #create extensions
+    for path, dirs, file_names in os.walk("."):
+        for file_name in file_names:
+            if file_name.endswith("pyx"):
+                ext_path = "{0}/{1}".format(path, file_name)
+                ext_name = ext_path \
+                    .replace("./", "") \
+                    .replace("/", ".") \
+                    .replace(".pyx", "")
+                ext = Extension(
+                    name=ext_name, 
+                    sources=[ext_path], 
+                    libraries=libs,
+                    language=language,
+                    extra_compile_args=args,
+                    extra_link_args=link_args,
+                    include_dirs = [np.get_include()],
+                )
+                extensions.append(ext)
+    
+    #setup all extensions
+    ext_modules = cythonize(
+        extensions, 
+        annotate=annotate, 
+        compiler_directives=directives,
+        quiet=quiet
+    )
+    setup(ext_modules=ext_modules)
